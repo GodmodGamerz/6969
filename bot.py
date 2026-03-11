@@ -9,7 +9,7 @@ from telegram.ext import (
 logging.basicConfig(level=logging.INFO)
 
 TELEGRAM_TOKEN = "8421541005:AAFLxKVTUi6Q3o_YHWga8EEVCWh5FKHGCP4"
-NVIDIA_API_KEY = "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"
+NVIDIA_API_KEY = "TAgTmK392MiBA07boooTmQgO6LL8kwcUMN35ffuoh_qIIDBH1RdlA"
 
 client = OpenAI(
     base_url="https://integrate.api.nvidia.com/v1",
