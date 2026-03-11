@@ -17,10 +17,10 @@ client = OpenAI(
 )
 
 MODELS = {
+    "kimi_k2":   {"id": "moonshotai/kimi-k2.5", "label": "Kimi K2.5 🌙"},
+    "qwen3":     {"id": "qwen/qwen3.5-397b-a17b", "label": "Qwen 3.5 🧠"},
     "llama_4":   {"id": "meta/llama-4-maverick-17b-128e-instruct", "label": "Llama 4 Maverick 🦙"},
-    "llama3":    {"id": "meta/llama-3.1-405b-instruct", "label": "Llama 3.1 405B 🦙"},
     "mistral":   {"id": "mistralai/mistral-7b-instruct-v0.3", "label": "Mistral 7B ⚡"},
-    "gemma":     {"id": "google/gemma-3-27b-it", "label": "Gemma 3 27B 🔷"},
     "phi4":      {"id": "microsoft/phi-4", "label": "Phi-4 🔬"},
 }
 
