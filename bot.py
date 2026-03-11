@@ -17,11 +17,11 @@ client = OpenAI(
 )
 
 MODELS = {
-    "kimi_k2":   {"id": "moonshotai/kimi-k2.5", "label": "Kimi K2.5 🌙"},
-    "qwen3":     {"id": "qwen/qwen3.5-397b-a17b", "label": "Qwen 3.5 🧠"},
-    "llama_4":   {"id": "meta/llama-4-maverick-17b-128e-instruct", "label": "Llama 4 Maverick 🦙"},
-    "mistral":   {"id": "mistralai/mistral-7b-instruct-v0.3", "label": "Mistral 7B ⚡"},
-    "phi4":      {"id": "microsoft/phi-4", "label": "Phi-4 🔬"},
+    "llama_4":    {"id": "meta/llama-4-maverick-17b-128e-instruct", "label": "Llama 4 Maverick 🦙"},
+    "deepseek_r1": {"id": "deepseek-ai/deepseek-r1-distill-llama-8b", "label": "DeepSeek R1 🔍"},
+    "deepseek_v3": {"id": "deepseek-ai/deepseek-v3.2", "label": "DeepSeek V3.2 💡"},
+    "gemma2":     {"id": "google/gemma-2-27b-it", "label": "Gemma 2 27B 🔷"},
+    "seed":       {"id": "bytedance/seed-oss-36b-instruct", "label": "Seed 36B 🌱"},
 }
 
 user_state = {}
