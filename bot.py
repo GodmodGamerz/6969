@@ -17,11 +17,14 @@ client = OpenAI(
 )
 
 MODELS = {
+    "kimi_k2":    {"id": "moonshotai/kimi-k2-instruct", "label": "Kimi K2 🌙"},
+    "kimi_think": {"id": "moonshotai/kimi-k2-thinking", "label": "Kimi K2 Thinking 🧠"},
+    "deepseek":   {"id": "deepseek-ai/deepseek-v3.2", "label": "DeepSeek V3.2 🔍"},
     "llama_4":    {"id": "meta/llama-4-maverick-17b-128e-instruct", "label": "Llama 4 Maverick 🦙"},
-    "deepseek_r1": {"id": "deepseek-ai/deepseek-r1-distill-llama-8b", "label": "DeepSeek R1 🔍"},
-    "deepseek_v3": {"id": "deepseek-ai/deepseek-v3.2", "label": "DeepSeek V3.2 💡"},
-    "gemma2":     {"id": "google/gemma-2-27b-it", "label": "Gemma 2 27B 🔷"},
-    "seed":       {"id": "bytedance/seed-oss-36b-instruct", "label": "Seed 36B 🌱"},
+    "mistral":    {"id": "mistralai/mistral-large-2-instruct", "label": "Mistral Large ⚡"},
+    "qwen3":      {"id": "qwen/qwen3.5-397b-a17b", "label": "Qwen 3.5 397B 🤖"},
+    "gemma3":     {"id": "google/gemma-3-27b-it", "label": "Gemma 3 27B 🔷"},
+    "phi4":       {"id": "microsoft/phi-4-mini-instruct", "label": "Phi-4 Mini 🔬"},
 }
 
 user_state = {}
