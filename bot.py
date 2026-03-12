@@ -1,16 +1,25 @@
 import logging
+import time
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     CallbackQueryHandler, ContextTypes, filters
 )
 import requests
+from datetime import datetime
 
 logging.basicConfig(level=logging.INFO)
 
 TELEGRAM_TOKEN = "8421541005:AAFLxKVTUi6Q3o_YHWga8EEVCWh5FKHGCP4"
 NVIDIA_API_KEY = "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"
 TAVILY_API_KEY = "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"
+
+HF_API_KEYS = [
+    "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",
+    "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",
+]
+
+HF_MODEL = "stabilityai/stable-diffusion-xl-base-1.0"
 
 MODELS = {
     "kimi_k2":    {"id": "moonshotai/kimi-k2-instruct", "label": "Kimi K2 🌙"},
@@ -99,15 +108,64 @@ def ask_nvidia(model_id, messages):
     )
     return response.json()["choices"][0]["message"]["content"]
 
+def generate_image_hf(prompt):
+    for key in HF_API_KEYS:
+        try:
+            response = requests.post(
+                f"https://api-inference.huggingface.co/models/{HF_MODEL}",
+                headers={"Authorization": f"Bearer {key}"},
+                json={"inputs": prompt},
+                timeout=60
+            )
+            if response.status_code == 200:
+                return response.content, None
+            elif response.status_code == 429:
+                logging.warning(f"HF key rate limited, trying next...")
+                continue
+            else:
+                logging.warning(f"HF error {response.status_code}: {response.text}")
+                continue
+        except Exception as e:
+            logging.error(f"HF key error: {e}")
+            continue
+    return None, "hf_failed"
+
+def generate_image_pollinations(prompt):
+    try:
+        encoded = requests.utils.quote(prompt)
+        url = f"https://image.pollinations.ai/prompt/{encoded}?width=1024&height=1024&nologo=true"
+        response = requests.get(url, timeout=60)
+        if response.status_code == 200:
+            return response.content, None
+        return None, "pollinations_failed"
+    except Exception as e:
+        logging.error(f"Pollinations error: {e}")
+        return None, str(e)
+
+def generate_image(prompt):
+    # Try Hugging Face first
+    image_data, error = generate_image_hf(prompt)
+    if image_data:
+        return image_data, "🎨 Generated with Stable Diffusion XL"
+
+    # Fall back to Pollinations
+    logging.info("Falling back to Pollinations AI...")
+    image_data, error = generate_image_pollinations(prompt)
+    if image_data:
+        return image_data, "🎨 Generated with Pollinations AI"
+
+    return None, None
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 *Welcome to AI Chat Bot!*\n\n"
-        "Powered by NVIDIA API + Real-time Web Search 🌐\n\n"
+        "Powered by NVIDIA API + Web Search + Image Generation 🎨\n\n"
         "*Commands:*\n"
         "• /model — Switch AI model\n"
         "• /reset — Clear chat history\n"
         "• /current — Show current model\n"
-        "• /search — Toggle web search on/off\n\n"
+        "• /search — Toggle web search on/off\n"
+        "• /image <prompt> — Generate an image\n\n"
         "Start chatting! 🚀",
         parse_mode="Markdown"
     )
@@ -164,6 +222,28 @@ async def toggle_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
+async def image_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    prompt = " ".join(context.args)
+    if not prompt:
+        await update.message.reply_text(
+            "Please provide a prompt!\nExample: `/image a sunset over mountains`",
+            parse_mode="Markdown"
+        )
+        return
+
+    await update.message.reply_text("🎨 Generating your image, please wait...")
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="upload_photo")
+
+    image_data, source = generate_image(prompt)
+
+    if image_data:
+        await update.message.reply_photo(
+            photo=image_data,
+            caption=f"{source}\n📝 Prompt: {prompt}"
+        )
+    else:
+        await update.message.reply_text("❌ Failed to generate image. Please try again later.")
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     state = get_state(user_id)
@@ -172,7 +252,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
     try:
-        system_prompt = "You are a helpful, smart, and friendly AI assistant. Today's date is " + __import__('datetime').datetime.now().strftime("%Y-%m-%d") + "."
+        system_prompt = f"You are a helpful, smart, and friendly AI assistant. Today's date is {datetime.now().strftime('%Y-%m-%d')}."
 
         if state["web_search"] and needs_search(user_message, MODELS[state["model"]]["id"]):
             await update.message.reply_text("🔍 Searching the web...")
@@ -208,6 +288,7 @@ def main():
     app.add_handler(CommandHandler("reset", reset))
     app.add_handler(CommandHandler("current", current))
     app.add_handler(CommandHandler("search", toggle_search))
+    app.add_handler(CommandHandler("image", image_command))
     app.add_handler(CallbackQueryHandler(model_callback, pattern="^model:"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     print("✅ Bot is running!")
