@@ -5,11 +5,15 @@ from telegram.ext import (
     CallbackQueryHandler, ContextTypes, filters
 )
 import requests
+from tavily import TavilyClient
 
 logging.basicConfig(level=logging.INFO)
 
 TELEGRAM_TOKEN = "8421541005:AAFLxKVTUi6Q3o_YHWga8EEVCWh5FKHGCP4"
 NVIDIA_API_KEY = "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"
+TAVILY_API_KEY = "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"
+
+tavily = TavilyClient(api_key=TAVILY_API_KEY)
 
 MODELS = {
     "kimi_k2":    {"id": "moonshotai/kimi-k2-instruct", "label": "Kimi K2 🌙"},
@@ -26,8 +30,51 @@ user_state = {}
 
 def get_state(user_id):
     if user_id not in user_state:
-        user_state[user_id] = {"model": "kimi_k2", "history": []}
+        user_state[user_id] = {"model": "kimi_k2", "history": [], "web_search": True}
     return user_state[user_id]
+
+def needs_search(message, model_id):
+    try:
+        headers = {
+            "Authorization": f"Bearer {NVIDIA_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        data = {
+            "model": model_id,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You decide if a question needs a real-time web search to answer accurately. Reply with only YES or NO. Reply YES if the question is about current events, recent news, live data, prices, weather, sports scores, people's current roles, or anything that changes over time. Reply NO if it's a general knowledge, math, coding, or timeless question."
+                },
+                {
+                    "role": "user",
+                    "content": message
+                }
+            ],
+            "max_tokens": 5,
+            "temperature": 0,
+        }
+        response = requests.post(
+            "https://integrate.api.nvidia.com/v1/chat/completions",
+            headers=headers,
+            json=data
+        )
+        answer = response.json()["choices"][0]["message"]["content"].strip().upper()
+        return "YES" in answer
+    except Exception as e:
+        logging.error(f"Search decision error: {e}")
+        return False
+
+def search_web(query):
+    try:
+        results = tavily.search(query=query, max_results=3)
+        snippets = []
+        for r in results["results"]:
+            snippets.append(f"- {r['title']}: {r['content'][:300]}")
+        return "\n".join(snippets)
+    except Exception as e:
+        logging.error(f"Search error: {e}")
+        return None
 
 def ask_nvidia(model_id, messages):
     headers = {
@@ -50,11 +97,12 @@ def ask_nvidia(model_id, messages):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 *Welcome to AI Chat Bot!*\n\n"
-        "Powered by NVIDIA API with multiple AI models.\n\n"
+        "Powered by NVIDIA API + Real-time Web Search 🌐\n\n"
         "*Commands:*\n"
         "• /model — Switch AI model\n"
         "• /reset — Clear chat history\n"
-        "• /current — Show current model\n\n"
+        "• /current — Show current model\n"
+        "• /search — Toggle web search on/off\n\n"
         "Start chatting! 🚀",
         parse_mode="Markdown"
     )
@@ -94,8 +142,20 @@ async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def current(update: Update, context: ContextTypes.DEFAULT_TYPE):
     state = get_state(update.effective_user.id)
     model = MODELS[state["model"]]
+    search_status = "🟢 On" if state["web_search"] else "🔴 Off"
     await update.message.reply_text(
-        f"🤖 Current model: *{model['label']}*\n`{model['id']}`",
+        f"🤖 Current model: *{model['label']}*\n"
+        f"`{model['id']}`\n\n"
+        f"🌐 Web Search: {search_status}",
+        parse_mode="Markdown"
+    )
+
+async def toggle_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    state = get_state(update.effective_user.id)
+    state["web_search"] = not state["web_search"]
+    status = "🟢 ON" if state["web_search"] else "🔴 OFF"
+    await update.message.reply_text(
+        f"🌐 Web search is now *{status}*",
         parse_mode="Markdown"
     )
 
@@ -105,16 +165,33 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     state["history"].append({"role": "user", "content": user_message})
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+
     try:
+        system_prompt = "You are a helpful, smart, and friendly AI assistant."
+
+        if state["web_search"] and needs_search(user_message, MODELS[state["model"]]["id"]):
+            await update.message.reply_text("🔍 Searching the web...")
+            search_results = search_web(user_message)
+            if search_results:
+                system_prompt += (
+                    f"\n\nHere is real-time web search data to help answer the user's question:\n"
+                    f"{search_results}\n\n"
+                    f"Use this information to give an up-to-date accurate answer."
+                )
+
         messages = [
-            {"role": "system", "content": "You are a helpful, smart, and friendly AI assistant."},
+            {"role": "system", "content": system_prompt},
             *state["history"],
         ]
+
         reply = ask_nvidia(MODELS[state["model"]]["id"], messages)
         state["history"].append({"role": "assistant", "content": reply})
+
         if len(state["history"]) > 20:
             state["history"] = state["history"][-20:]
+
         await update.message.reply_text(reply)
+
     except Exception as e:
         logging.error(e)
         await update.message.reply_text("❌ Error getting response. Try /model to switch models.")
@@ -125,6 +202,7 @@ def main():
     app.add_handler(CommandHandler("model", model_command))
     app.add_handler(CommandHandler("reset", reset))
     app.add_handler(CommandHandler("current", current))
+    app.add_handler(CommandHandler("search", toggle_search))
     app.add_handler(CallbackQueryHandler(model_callback, pattern="^model:"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     print("✅ Bot is running!")
