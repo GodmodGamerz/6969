@@ -1,12 +1,11 @@
 import logging
-import time
+from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     CallbackQueryHandler, ContextTypes, filters
 )
 import requests
-from datetime import datetime
 
 logging.basicConfig(level=logging.INFO)
 
@@ -15,8 +14,7 @@ NVIDIA_API_KEY = "nvapi-Yr8V1iGDfK6GMaUiktdpB4fms4o6YFemOjHZAlE0AsM-ltvH-XkTRFPa
 TAVILY_API_KEY = "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"
 
 HF_API_KEYS = [
-    "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",
-    "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",
+    "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",
 ]
 
 HF_MODEL = "stabilityai/stable-diffusion-xl-base-1.0"
@@ -108,53 +106,24 @@ def ask_nvidia(model_id, messages):
     )
     return response.json()["choices"][0]["message"]["content"]
 
-def generate_image_hf(prompt):
-    for key in HF_API_KEYS:
+def generate_image(prompt):
+    for i, key in enumerate(HF_API_KEYS):
         try:
             response = requests.post(
-                f"https://api-inference.huggingface.co/models/{HF_MODEL}",
+                f"https://router.huggingface.co/hf-inference/models/{HF_MODEL}",
                 headers={"Authorization": f"Bearer {key}"},
                 json={"inputs": prompt},
                 timeout=60
             )
             if response.status_code == 200:
-                return response.content, None
-            elif response.status_code == 429:
-                logging.warning(f"HF key rate limited, trying next...")
-                continue
+                return response.content
             else:
-                logging.warning(f"HF error {response.status_code}: {response.text}")
+                logging.warning(f"HF key {i+1} failed: {response.status_code} {response.text[:100]}")
                 continue
         except Exception as e:
-            logging.error(f"HF key error: {e}")
+            logging.error(f"HF key {i+1} error: {e}")
             continue
-    return None, "hf_failed"
-
-def generate_image_pollinations(prompt):
-    try:
-        encoded = requests.utils.quote(prompt)
-        url = f"https://image.pollinations.ai/prompt/{encoded}?width=1024&height=1024&nologo=true"
-        response = requests.get(url, timeout=60)
-        if response.status_code == 200:
-            return response.content, None
-        return None, "pollinations_failed"
-    except Exception as e:
-        logging.error(f"Pollinations error: {e}")
-        return None, str(e)
-
-def generate_image(prompt):
-    # Try Hugging Face first
-    image_data, error = generate_image_hf(prompt)
-    if image_data:
-        return image_data, "🎨 Generated with Stable Diffusion XL"
-
-    # Fall back to Pollinations
-    logging.info("Falling back to Pollinations AI...")
-    image_data, error = generate_image_pollinations(prompt)
-    if image_data:
-        return image_data, "🎨 Generated with Pollinations AI"
-
-    return None, None
+    return None
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -231,18 +200,19 @@ async def image_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    await update.message.reply_text("🎨 Generating your image, please wait...")
+    msg = await update.message.reply_text("🎨 Generating your image, please wait...")
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="upload_photo")
 
-    image_data, source = generate_image(prompt)
+    image_data = generate_image(prompt)
 
     if image_data:
         await update.message.reply_photo(
             photo=image_data,
-            caption=f"{source}\n📝 Prompt: {prompt}"
+            caption=f"🎨 Generated with Stable Diffusion XL\n📝 Prompt: {prompt}"
         )
+        await msg.delete()
     else:
-        await update.message.reply_text("❌ Failed to generate image. Please try again later.")
+        await msg.edit_text("❌ Failed to generate image. Please try again later.")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
