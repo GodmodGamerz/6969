@@ -1,4 +1,5 @@
 import logging
+import os
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -13,9 +14,12 @@ TELEGRAM_TOKEN = "8421541005:AAFLxKVTUi6Q3o_YHWga8EEVCWh5FKHGCP4"
 NVIDIA_API_KEY = "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"
 TAVILY_API_KEY = "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"
 
-HF_API_KEYS = [
-    "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",
-]
+# HF keys loaded from Railway environment variables
+HF_API_KEYS = [k for k in [
+    os.environ.get("HF_API_KEY_1"),
+    os.environ.get("HF_API_KEY_2"),
+    os.environ.get("HF_API_KEY_3"),
+] if k]
 
 HF_MODEL = "stabilityai/stable-diffusion-xl-base-1.0"
 
@@ -107,6 +111,8 @@ def ask_nvidia(model_id, messages):
     return response.json()["choices"][0]["message"]["content"]
 
 def generate_image(prompt):
+    if not HF_API_KEYS:
+        return None
     for i, key in enumerate(HF_API_KEYS):
         try:
             response = requests.post(
