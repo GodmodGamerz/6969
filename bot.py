@@ -5,15 +5,12 @@ from telegram.ext import (
     CallbackQueryHandler, ContextTypes, filters
 )
 import requests
-from tavily import TavilyClient
 
 logging.basicConfig(level=logging.INFO)
 
 TELEGRAM_TOKEN = "8421541005:AAFLxKVTUi6Q3o_YHWga8EEVCWh5FKHGCP4"
 NVIDIA_API_KEY = "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"
 TAVILY_API_KEY = "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"
-
-tavily = TavilyClient(api_key=TAVILY_API_KEY)
 
 MODELS = {
     "kimi_k2":    {"id": "moonshotai/kimi-k2-instruct", "label": "Kimi K2 🌙"},
@@ -67,9 +64,17 @@ def needs_search(message, model_id):
 
 def search_web(query):
     try:
-        results = tavily.search(query=query, max_results=3)
+        response = requests.post(
+            "https://api.tavily.com/search",
+            json={
+                "api_key": TAVILY_API_KEY,
+                "query": query,
+                "max_results": 3
+            }
+        )
+        results = response.json()["results"]
         snippets = []
-        for r in results["results"]:
+        for r in results:
             snippets.append(f"- {r['title']}: {r['content'][:300]}")
         return "\n".join(snippets)
     except Exception as e:
@@ -167,7 +172,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
     try:
-        system_prompt = "You are a helpful, smart, and friendly AI assistant."
+        system_prompt = "You are a helpful, smart, and friendly AI assistant. Today's date is " + __import__('datetime').datetime.now().strftime("%Y-%m-%d") + "."
 
         if state["web_search"] and needs_search(user_message, MODELS[state["model"]]["id"]):
             await update.message.reply_text("🔍 Searching the web...")
